@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Monitor Visual de Latencia VICIdial</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      padding: 20px;
+    }
+    h2 {
+      margin-bottom: 5px;
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    canvas {
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>📈 Monitor Visual de Latencia - VICIdial</h2>
+  <p>Consulta cada 5 segundos las rutas críticas de VICIdial: <code>vdc_db_query.php</code>, <code>vicidial.php</code>, <code>non_agent_api.php</code></p>
+
+  <div class="section">
+    <h3>vdc_db_query.php</h3>
+    <canvas id="chart_db" width="400" height="200"></canvas>
+  </div>
+  <div class="section">
+    <h3>vicidial.php</h3>
+    <canvas id="chart_main" width="400" height="200"></canvas>
+  </div>
+  <div class="section">
+    <h3>non_agent_api.php</h3>
+    <canvas id="chart_api" width="400" height="200"></canvas>
+  </div>
+
+  <script>
+    const endpoints = {
+      db: "https://lxpvdweb05.corp.codetel.com.do/agc/vdc_db_query.php",
+      main: "https://lxpvdweb05.corp.codetel.com.do/agc/vicidial.php",
+      api: "https://lxpvdweb05.corp.codetel.com.do/agc/non_agent_api.php"
+    };
+
+    const charts = {};
+
+    function createChart(ctxId, label) {
+      const ctx = document.getElementById(ctxId).getContext('2d');
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: label,
+            data: [],
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.3,
+            pointRadius: 2
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              title: { display: true, text: 'ms' },
+              min: 0
+            },
+            x: {
+              ticks: { maxRotation: 90, minRotation: 90 }
+            }
+          }
+        }
+      });
+    }
+
+    charts.db = createChart("chart_db", "Latencia DB Query");
+    charts.main = createChart("chart_main", "Latencia vicidial.php");
+    charts.api = createChart("chart_api", "Latencia non_agent_api.php");
+
+    async function testLatency(endpoint, chart) {
+      const url = endpoint + "?t=" + Date.now();
+      const start = performance.now();
+      try {
+        const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+        const end = performance.now();
+        const latency = +(end - start).toFixed(1);
+        const label = new Date().toLocaleTimeString();
+        chart.data.labels.push(label);
+        chart.data.datasets[0].data.push(latency);
+        if (chart.data.labels.length > 20) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+        }
+        chart.update();
+      } catch (e) {
+        console.warn("Error con", endpoint, e);
+      }
+    }
+
+    setInterval(() => {
+      testLatency(endpoints.db, charts.db);
+      testLatency(endpoints.main, charts.main);
+      testLatency(endpoints.api, charts.api);
+    }, 5000);
+  </script>
+</body>
+</html>
